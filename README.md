@@ -30,7 +30,13 @@
 
         // 🔥 Apna Firebase Config yahan paste karo
         const firebaseConfig = { 
-            /* PASTE YOUR CONFIG HERE */ 
+            /* const firebaseConfig = {
+    apiKey: "AIzaSy...",
+    authDomain: "nncart.firebaseapp.com",
+    projectId: "nncart",
+    // ... baki sab details
+};
+*/ 
         };
         const db = getFirestore(initializeApp(firebaseConfig));
 
