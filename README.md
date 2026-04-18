@@ -2,100 +2,73 @@
 <html lang="hi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NnCart Admin Inventory</title>
+    <title>NnCart | Admin Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <style>
-        .glass { background: rgba(15, 23, 42, 0.95); backdrop-filter: blur(10px); }
-    </style>
 </head>
-<body class="bg-slate-950 text-white min-h-screen">
-
-    <div class="p-4 max-w-md mx-auto">
-        <h1 class="text-2xl font-black text-amber-500 mb-4 text-center">NnCart Inventory</h1>
-        
-        <div class="rounded-3xl border-4 border-slate-800 overflow-hidden bg-black mb-4">
-            <div id="reader" style="width: 100%; min-height: 250px;"></div>
-        </div>
-        
-        <button onclick="startScanning()" class="w-full bg-amber-500 text-black font-black py-4 rounded-2xl shadow-lg active:scale-95 transition">📸 SCAN BARCODE</button>
+<body class="bg-gray-900 text-white min-h-screen p-4">
+    <h1 class="text-3xl font-bold text-yellow-500 text-center mb-6">NnCart Admin Panel</h1>
+    
+    <div class="flex justify-center gap-4 mb-6">
+        <button onclick="showSection('orders')" class="bg-yellow-600 px-6 py-2 rounded-lg font-bold">Orders</button>
+        <button onclick="showSection('inventory')" class="bg-blue-600 px-6 py-2 rounded-lg font-bold">Inventory</button>
     </div>
 
-    <div id="modal" class="fixed inset-0 glass z-50 hidden flex items-center justify-center p-4">
-        <div class="bg-slate-900 w-full max-w-sm rounded-3xl border border-slate-700 p-6 max-h-[90vh] overflow-y-auto">
-            <h2 class="text-xl font-bold text-amber-500 mb-4">Product Details</h2>
-            
-            <div class="space-y-3 text-sm">
-                <div><label>Barcode</label><input type="text" id="barcode" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1" readonly></div>
-                <div><label>Product Name</label><input type="text" id="pname" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                <div><label>Image URL</label><input type="text" id="img_url" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label>Price</label><input type="number" id="price" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                    <div><label>Quantity/Stock</label><input type="number" id="qty" value="1" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label>Category</label><input type="text" id="cat" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                    <div><label>Size</label><input type="text" id="size" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                </div>
-
-                <div class="grid grid-cols-2 gap-2">
-                    <div><label>Color</label><input type="text" id="color" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                    <div><label>Shipping ID</label><input type="text" id="ship_id" class="w-full bg-slate-800 p-3 rounded-xl border border-slate-700 mt-1"></div>
-                </div>
-            </div>
-
-            <div class="flex gap-2 mt-6">
-                <button onclick="closeModal()" class="flex-1 bg-slate-700 py-3 rounded-xl font-bold">Cancel</button>
-                <button onclick="saveData()" id="save-btn" class="flex-1 bg-green-600 py-3 rounded-xl font-bold">Save</button>
-            </div>
-        </div>
+    <div id="ordersSection" class="grid gap-4 max-w-4xl mx-auto">
+        <h2 class="text-xl font-bold text-white">Recent Orders</h2>
+        <div id="orderList"></div>
     </div>
 
-    <script>
-        const html5QrCode = new Html5Qrcode("reader");
-        const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby2ZGgqtp2rTq6OaanKKZA3XhWCuqcPezUu-Ed4gD_zhX3rMVC0cT3I8wvbNfPmT1fJ/exec";
+    <div id="inventorySection" class="hidden max-w-4xl mx-auto bg-gray-800 p-6 rounded-xl">
+        <h2 class="text-xl font-bold text-white mb-4">Inventory Management</h2>
+        <div id="inventoryList" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            </div>
+    </div>
 
-        function startScanning() {
-            html5QrCode.start({ facingMode: "environment" }, { fps: 10, qrbox: 250 }, 
-            (decodedText) => {
-                document.getElementById('barcode').value = decodedText;
-                html5QrCode.stop();
-                document.getElementById('modal').classList.remove('hidden');
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+        import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+        // 🔥 Apna Firebase Config yahan paste karo
+        const firebaseConfig = { 
+            /* PASTE YOUR CONFIG HERE */ 
+        };
+        const db = getFirestore(initializeApp(firebaseConfig));
+
+        // Tab Switching Logic
+        window.showSection = (section) => {
+            document.getElementById('ordersSection').classList.toggle('hidden', section !== 'orders');
+            document.getElementById('inventorySection').classList.toggle('hidden', section !== 'inventory');
+        };
+
+        // Fetch Data
+        async function loadData() {
+            // Orders
+            const orderSnap = await getDocs(collection(db, "order"));
+            let oHtml = "";
+            orderSnap.forEach(doc => {
+                const o = doc.data();
+                oHtml += `<div class="bg-gray-800 p-4 rounded-xl border-l-4 border-yellow-500">
+                            <p class="font-bold">${o['Customer Name']} - ${o['Mobile']}</p>
+                            <p class="text-sm">Product: ${o['Products']} | Price: ${o['Price']}</p>
+                          </div>`;
             });
-        }
+            document.getElementById('orderList').innerHTML = oHtml;
 
-        function closeModal() {
-            document.getElementById('modal').classList.add('hidden');
-        }
-
-        async function saveData() {
-            const btn = document.getElementById('save-btn');
-            btn.innerText = "Saving...";
-            
-            const payload = {
-                barcode: document.getElementById('barcode').value,
-                name: document.getElementById('pname').value,
-                imageUrl: document.getElementById('img_url').value,
-                price: document.getElementById('price').value,
-                qty: document.getElementById('qty').value,
-                category: document.getElementById('cat').value,
-                size: document.getElementById('size').value,
-                color: document.getElementById('color').value,
-                shippingId: document.getElementById('ship_id').value
-            };
-
-            await fetch(APPS_SCRIPT_URL, {
-                method: 'POST',
-                mode: 'no-cors',
-                body: JSON.stringify(payload)
+            // Inventory (Connecting to Firestore 'inventory' collection)
+            const invSnap = await getDocs(collection(db, "inventory"));
+            let iHtml = "";
+            invSnap.forEach(doc => {
+                const i = doc.data();
+                iHtml += `<div class="bg-gray-700 p-3 rounded-lg text-sm">
+                            <p><b>Product:</b> ${i['Product Name']}</p>
+                            <p><b>Barcode:</b> ${i['Barcode']}</p>
+                            <p><b>Stock:</b> ${i['stock']} | <b>Price:</b> ${i['Price']}</p>
+                            <p><b>Color/Size:</b> ${i['color']} / ${i['size']}</p>
+                          </div>`;
             });
-            
-            alert("Inventory Saved!");
-            location.reload(); // Page refresh to scan next
+            document.getElementById('inventoryList').innerHTML = iHtml;
         }
+        loadData();
     </script>
 </body>
 </html>
