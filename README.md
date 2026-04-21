@@ -1,122 +1,232 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NnCart | Master Admin Dashboard</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/html5-qrcode"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NNCart Ultimate Admin</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
 </head>
-<body class="bg-gray-900 text-white min-h-screen p-4">
-    <h1 class="text-3xl font-bold text-yellow-500 text-center mb-6">NnCart Admin Master Panel</h1>
-    
-    <div class="flex justify-center gap-4 mb-6">
-        <button onclick="showSection('orders')" class="bg-yellow-600 px-6 py-2 rounded-lg font-bold">Orders</button>
-        <button onclick="showSection('inventory')" class="bg-blue-600 px-6 py-2 rounded-lg font-bold">Inventory</button>
-    </div>
 
-    <div id="ordersSection" class="grid gap-4 max-w-4xl mx-auto">
-        <h2 class="text-xl font-bold mb-4">Recent Customer Orders</h2>
-        <div id="orderList" class="space-y-4"></div>
-    </div>
+<body class="bg-gray-100 p-4">
 
-    <div id="inventorySection" class="hidden max-w-4xl mx-auto bg-gray-800 p-6 rounded-xl">
-        <h2 class="text-xl font-bold mb-4">Inventory & Scanner</h2>
-        
-        <div id="reader" class="mb-6 bg-black rounded-lg overflow-hidden border-2 border-blue-500"></div>
-        <div id="result" class="text-green-400 font-bold mb-4">Scan karo product barcode...</div>
+<h1 class="text-xl font-bold mb-3">NNCart Ultimate Admin</h1>
 
-        <div id="inventoryList" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-    </div>
+<!-- DASHBOARD -->
+<div class="grid grid-cols-3 gap-3 mb-3">
+<div class="bg-white p-2 text-center"><h2 id="ordersCount">0</h2>Orders</div>
+<div class="bg-white p-2 text-center"><h2 id="revenue">0</h2>Revenue</div>
+<div class="bg-white p-2 text-center"><h2 id="pending">0</h2>Pending</div>
+</div>
 
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-        import { getFirestore, collection, getDocs, updateDoc, deleteDoc, doc, addDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+<!-- SEARCH -->
+<input id="search" placeholder="Search Customer..." class="border p-2 w-full mb-3">
 
-        // 🔥 Yahan apna Firebase Config daalo
-        const firebaseConfig = { 
-            apiKey: "AIzaSyCH2di4fAKw8vA80Cv8bMobi...", 
-            authDomain: "nncart.firebaseapp.com",
-            projectId: "nncart",
-            storageBucket: "nncart.appspot.com",
-            messagingSenderId: "662993037031",
-            appId: "1:662993037031:web:893e379fe374cb74d26442"
-        };
-        const db = getFirestore(initializeApp(firebaseConfig));
+<!-- PRODUCT ADD -->
+<h2 class="font-bold">Add / Scan Product</h2>
 
-        // --- SECTION LOGIC ---
-        window.showSection = (section) => {
-            document.getElementById('ordersSection').classList.toggle('hidden', section !== 'orders');
-            document.getElementById('inventorySection').classList.toggle('hidden', section !== 'inventory');
-        };
+<input id="barcode" placeholder="Barcode" class="border p-2 w-full mb-1">
+<input id="pname" placeholder="Product Name" class="border p-2 w-full mb-1">
+<input id="price" placeholder="Price" class="border p-2 w-full mb-1">
+<input id="image" placeholder="Image URL" class="border p-2 w-full mb-1">
+<input id="category" placeholder="Category" class="border p-2 w-full mb-1">
+<input id="stock" placeholder="Stock" class="border p-2 w-full mb-1">
+<input id="color" placeholder="Color" class="border p-2 w-full mb-1">
+<input id="size" placeholder="Size" class="border p-2 w-full mb-1">
 
-        // --- ORDER MANAGEMENT ---
-        window.updateStatus = async (id, status) => {
-            await updateDoc(doc(db, "order", id), { Status: status });
-            alert("Order Status: " + status);
-            loadData();
-        };
+<button onclick="startScanner()" class="bg-blue-500 text-white px-3 py-1 mt-1">Scan</button>
+<button onclick="saveProduct()" class="bg-green-500 text-white px-3 py-1 mt-1">Save</button>
 
-        // --- INVENTORY MANAGEMENT ---
-        window.deleteProduct = async (id) => {
-            if(confirm("Delete this product entry?")) {
-                await deleteDoc(doc(db, "inventory", id));
-                loadData();
-            }
-        };
+<div id="scanner" class="mt-2"></div>
 
-        // Scanner Logic
-        const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        html5QrcodeScanner.render(async (decodedText) => {
-            document.getElementById('result').innerText = "Scanned: " + decodedText;
-            await addDoc(collection(db, "inventory"), {
-                "Barcode": decodedText,
-                "Product Name": "New Scan Item",
-                "stock": "1",
-                "Price": "0"
-            });
-            alert("Product added to inventory!");
-            loadData();
-        });
+<hr class="my-4">
 
-        // --- FETCH DATA ---
-        async function loadData() {
-            // Orders Fetching
-            const orderSnap = await getDocs(collection(db, "order"));
-            let oHtml = "";
-            orderSnap.forEach(d => {
-                const o = d.data();
-                oHtml += `
-                <div class="bg-gray-800 p-4 rounded-xl border-l-4 border-yellow-500 shadow-lg">
-                    <p class="font-bold text-lg">${o['Customer Name']} | ${o['Mobile']}</p>
-                    <p class="text-sm">Item: ${o['Products']} | Amount: ₹${o['Total']}</p>
-                    <p class="text-xs text-yellow-400 mt-1">Status: ${o['Status'] || 'Pending'}</p>
-                    <div class="mt-3 flex gap-2 flex-wrap">
-                        <button onclick="updateStatus('${d.id}', 'Confirmed')" class="bg-green-600 px-3 py-1 text-xs rounded hover:bg-green-700">Confirm</button>
-                        <button onclick="updateStatus('${d.id}', 'Shipped')" class="bg-blue-600 px-3 py-1 text-xs rounded hover:bg-blue-700">Ship</button>
-                    </div>
-                </div>`;
-            });
-            document.getElementById('orderList').innerHTML = oHtml;
+<!-- PRODUCTS LIST -->
+<h2 class="font-bold">All Products</h2>
+<div id="products"></div>
 
-            // Inventory Fetching
-            const invSnap = await getDocs(collection(db, "inventory"));
-            let iHtml = "";
-            invSnap.forEach(d => {
-                const i = d.data();
-                iHtml += `
-                <div class="bg-gray-700 p-3 rounded-lg text-sm flex justify-between items-center border border-gray-600">
-                    <div>
-                        <p class="font-bold">${i['Product Name'] || 'Unnamed'}</p>
-                        <p class="text-xs text-gray-300">Barcode: ${i['Barcode']}</p>
-                        <p class="text-xs">Stock: ${i['stock']} | Price: ₹${i['Price']}</p>
-                    </div>
-                    <button onclick="deleteProduct('${d.id}')" class="bg-red-500 p-2 rounded text-white font-bold">X</button>
-                </div>`;
-            });
-            document.getElementById('inventoryList').innerHTML = iHtml;
-        }
-        loadData();
-    </script>
+<hr class="my-4">
+
+<!-- ORDERS -->
+<h2 class="font-bold">Orders</h2>
+<div id="orders"></div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+apiKey:"AIzaSyCH...",
+authDomain:"nncart.firebaseapp.com",
+projectId:"nncart"
+};
+
+const db = getFirestore(initializeApp(firebaseConfig));
+
+let allOrders=[];
+
+// 📦 LOAD PRODUCTS
+async function loadProducts(){
+const snap = await getDocs(collection(db,"products"));
+let html="";
+snap.forEach(d=>{
+let p=d.data();
+html+=`
+<div class="bg-white p-2 mb-2">
+<p>${p["Product Name"]}</p>
+<p>₹${p["Price"]}</p>
+<button onclick="deleteProduct('${d.id}')" class="bg-red-500 text-white px-2">Delete</button>
+</div>`;
+});
+document.getElementById("products").innerHTML=html;
+}
+
+// 📦 LOAD ORDERS
+async function loadOrders(){
+const snap = await getDocs(collection(db,"orders"));
+allOrders = snap.docs.map(d=>({id:d.id,...d.data()}));
+renderOrders(allOrders);
+updateStats(allOrders);
+}
+
+// 🎨 RENDER ORDERS
+function renderOrders(data){
+let html="";
+data.forEach(o=>{
+html+=`
+<div class="bg-white p-3 mb-2 rounded">
+<h3>${o["Customer Name"]}</h3>
+<p>${o["Products"]}</p>
+<p>₹${o["Total"]}</p>
+<p>Status: ${o["Status"]}</p>
+
+<select onchange="updateStatus('${o.id}',this.value)">
+<option ${o["Status"]=="Pending"?"selected":""}>Pending</option>
+<option ${o["Status"]=="Shipped"?"selected":""}>Shipped</option>
+<option ${o["Status"]=="Delivered"?"selected":""}>Delivered</option>
+</select>
+
+<input placeholder="Shipping ID" value="${o["Shipping ID"]||""}" 
+onchange="updateShip('${o.id}',this.value)" class="border mt-1">
+
+${o["Payment Proof"] ? `<a href="${o["Payment Proof"]}" target="_blank">View Payment</a>` : ""}
+
+<button onclick='invoice(${JSON.stringify(o)})' class="bg-purple-500 text-white px-2 mt-1">Invoice</button>
+<button onclick="deleteOrder('${o.id}')" class="bg-red-500 text-white px-2 mt-1">Delete</button>
+
+</div>`;
+});
+document.getElementById("orders").innerHTML=html;
+}
+
+// 📊 STATS
+function updateStats(d){
+document.getElementById("ordersCount").innerText=d.length;
+
+let rev=0,p=0;
+d.forEach(o=>{
+rev+=Number(o["Total"]||0);
+if(o["Status"]=="Pending")p++;
+});
+
+document.getElementById("revenue").innerText="₹"+rev;
+document.getElementById("pending").innerText=p;
+}
+
+// 🔍 SEARCH
+document.getElementById("search").oninput=(e)=>{
+let v=e.target.value.toLowerCase();
+renderOrders(allOrders.filter(o=>o["Customer Name"]?.toLowerCase().includes(v)));
+};
+
+// 🔄 UPDATE STATUS
+window.updateStatus=async(id,s)=>{
+await updateDoc(doc(db,"orders",id),{"Status":s});
+loadOrders();
+};
+
+// 🚚 SHIPPING
+window.updateShip=async(id,s)=>{
+await updateDoc(doc(db,"orders",id),{"Shipping ID":s});
+};
+
+// ❌ DELETE ORDER
+window.deleteOrder=async(id)=>{
+await deleteDoc(doc(db,"orders",id));
+loadOrders();
+};
+
+// ❌ DELETE PRODUCT
+window.deleteProduct=async(id)=>{
+await deleteDoc(doc(db,"products",id));
+loadProducts();
+};
+
+// 📷 SCANNER
+window.startScanner=()=>{
+const html5QrCode=new Html5Qrcode("scanner");
+
+html5QrCode.start({facingMode:"environment"},{fps:10},async(txt)=>{
+
+document.getElementById("barcode").value=txt;
+
+const snap=await getDocs(collection(db,"products"));
+snap.forEach(d=>{
+let p=d.data();
+if(p["Barcode"]==txt){
+document.getElementById("pname").value=p["Product Name"];
+document.getElementById("price").value=p["Price"];
+document.getElementById("image").value=p["Image URL"];
+}
+});
+
+html5QrCode.stop();
+});
+};
+
+// ➕ SAVE PRODUCT
+window.saveProduct=async()=>{
+await addDoc(collection(db,"products"),{
+"Timestamp":new Date().toISOString(),
+"Barcode":document.getElementById("barcode").value,
+"Product Name":document.getElementById("pname").value,
+"Image URL":document.getElementById("image").value,
+"Price":document.getElementById("price").value,
+"category":document.getElementById("category").value,
+"stock":document.getElementById("stock").value,
+"color":document.getElementById("color").value,
+"size":document.getElementById("size").value
+});
+alert("Saved");
+loadProducts();
+};
+
+// 🧾 INVOICE
+window.invoice=(o)=>{
+const {jsPDF}=window.jspdf;
+let doc=new jsPDF();
+
+doc.text("NNCart Invoice",20,20);
+doc.text("Customer: "+o["Customer Name"],20,40);
+doc.text("Product: "+o["Products"],20,50);
+doc.text("Amount: ₹"+o["Total"],20,60);
+doc.text("Status: "+o["Status"],20,70);
+
+doc.save("invoice.pdf");
+};
+
+window.onload=()=>{
+loadOrders();
+loadProducts();
+};
+
+setInterval(loadOrders,5000);
+
+</script>
+
 </body>
 </html>
