@@ -3,13 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>NnCart PRO Admin</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#f43f5e">
+<title>NNCart PRO Admin</title>
 
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/html5-qrcode"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 </head>
 
@@ -48,11 +45,9 @@
 <div id="scanner"></div>
 </div>
 
-<!-- PRODUCTS -->
 <h2 class="font-bold">Products</h2>
 <div id="products"></div>
 
-<!-- ORDERS -->
 <h2 class="font-bold mt-4">Orders</h2>
 <div id="orders"></div>
 
@@ -70,69 +65,87 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔥 GOOGLE SHEET INVENTORY URL
-const INVENTORY_URL = "PASTE_YOUR_INVENTORY_WEB_APP_URL";
+// 🔥 GOOGLE SHEET URL
+const INVENTORY_URL = "PASTE_URL";
 
 let allOrders = [];
+let scanner = null;
 
-// ================= SAVE TO GOOGLE SHEET =================
-async function saveToSheet(data){
-  try{
-    await fetch(INVENTORY_URL,{
-      method:"POST",
-      body:JSON.stringify(data)
-    });
-  }catch(e){
-    console.log("Sheet Error",e);
-  }
+// ================= SCANNER FIX =================
+window.startScanner = async () => {
+try{
+
+if(scanner){
+await scanner.stop();
+scanner.clear();
 }
 
-// ================= SCANNER =================
-window.startScanner = () => {
-const qr = new Html5Qrcode("scanner");
+scanner = new Html5Qrcode("scanner");
 
-qr.start({ facingMode:"environment" },{ fps:10 }, async (code)=>{
+const cameras = await Html5Qrcode.getCameras();
+
+if(!cameras.length){
+alert("No camera found");
+return;
+}
+
+await scanner.start(
+cameras[0].id,
+{ fps:10, qrbox:250 },
+async (code)=>{
 
 document.getElementById("barcode").value = code;
 
-// 🔥 AUTO FETCH PRODUCT
+// AUTO FETCH
 try{
-const res = await fetch("https://api.upcitemdb.com/prod/trial/lookup?upc="+code);
-const data = await res.json();
+let res = await fetch("https://api.upcitemdb.com/prod/trial/lookup?upc="+code);
+let data = await res.json();
 
-if(data.items.length){
+if(data.items && data.items.length){
 let p = data.items[0];
 document.getElementById("pname").value = p.title || "";
-document.getElementById("image").value = p.images[0] || "";
-document.getElementById("price").value = p.offers[0]?.price || "";
+document.getElementById("image").value = p.images?.[0] || "";
+document.getElementById("price").value = p.offers?.[0]?.price || "";
 }
 }catch(e){}
 
-qr.stop();
+await scanner.stop();
 
-});
+},
+(err)=>{}
+);
+
+}catch(e){
+alert("Camera Error: "+e);
+console.log(e);
+}
 };
 
-// ================= SAVE PRODUCT =================
+// ================= SAVE =================
 window.saveProduct = async () => {
 
 const product = {
 Timestamp:new Date().toISOString(),
-Barcode:barcode.value,
-"Product Name":pname.value,
-"Image URL":image.value,
-Price:price.value,
-Category:category.value,
-Stock:stock.value,
-Color:color.value,
-Size:size.value
+Barcode:document.getElementById("barcode").value,
+"Product Name":document.getElementById("pname").value,
+"Image URL":document.getElementById("image").value,
+Price:document.getElementById("price").value,
+Category:document.getElementById("category").value,
+Stock:document.getElementById("stock").value,
+Color:document.getElementById("color").value,
+Size:document.getElementById("size").value
 };
 
-// 🔥 FIREBASE SAVE
 await addDoc(collection(db,"products"),product);
 
-// 🔥 GOOGLE SHEET SAVE
-await saveToSheet(product);
+// SHEET SAVE
+try{
+await fetch(INVENTORY_URL,{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body:JSON.stringify(product)
+});
+}catch(e){}
 
 alert("✅ Saved!");
 loadProducts();
@@ -141,9 +154,9 @@ loadProducts();
 // ================= LOAD PRODUCTS =================
 async function loadProducts(){
 const snap = await getDocs(collection(db,"products"));
-let html="";
 document.getElementById("productsCount").innerText = snap.size;
 
+let html="";
 snap.forEach(d=>{
 let p=d.data();
 html+=`
@@ -152,7 +165,6 @@ ${p["Product Name"]} - ₹${p["Price"]}
 <button onclick="deleteProduct('${d.id}')" class="bg-red-500 text-white px-2">X</button>
 </div>`;
 });
-
 document.getElementById("products").innerHTML=html;
 }
 
@@ -180,14 +192,14 @@ ${o["Customer Name"]} - ₹${o["Total"]}
 <br>Status: ${o["Status"]}
 <br>
 <select onchange="updateStatus('${o.id}',this.value)">
-<option>Pending</option>
-<option>Shipped</option>
-<option>Delivered</option>
+<option ${o["Status"]=="Pending"?"selected":""}>Pending</option>
+<option ${o["Status"]=="Shipped"?"selected":""}>Shipped</option>
+<option ${o["Status"]=="Delivered"?"selected":""}>Delivered</option>
 </select>
 <button onclick="deleteOrder('${o.id}')" class="bg-red-500 text-white px-2">Delete</button>
 </div>`;
 });
-orders.innerHTML=html;
+document.getElementById("orders").innerHTML=html;
 }
 
 // ================= STATUS =================
@@ -209,13 +221,13 @@ rev+=Number(o.Total||0);
 if(o.Status=="Pending")p++;
 });
 
-ordersCount.innerText = allOrders.length;
-revenue.innerText = "₹"+rev;
-pending.innerText = p;
+document.getElementById("ordersCount").innerText = allOrders.length;
+document.getElementById("revenue").innerText = "₹"+rev;
+document.getElementById("pending").innerText = p;
 }
 
 // ================= SEARCH =================
-search.oninput = (e)=>{
+document.getElementById("search").oninput = (e)=>{
 let v=e.target.value.toLowerCase();
 renderOrders(allOrders.filter(o=>o["Customer Name"]?.toLowerCase().includes(v)));
 };
