@@ -42,7 +42,7 @@
 <button onclick="saveProduct()" class="bg-green-500 text-white p-2 w-full">Save</button>
 </div>
 
-<div id="scanner"></div>
+<div id="scanner" class="mt-2"></div>
 </div>
 
 <h2 class="font-bold">Products</h2>
@@ -56,89 +56,82 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
+// 🔥 PUT YOUR REAL FIREBASE HERE
 const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID"
+  apiKey: "PASTE_API_KEY",
+  authDomain: "PASTE_PROJECT.firebaseapp.com",
+  projectId: "PASTE_PROJECT_ID"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔥 GOOGLE SHEET URL
-const INVENTORY_URL = "PASTE_URL";
+// 🔥 GOOGLE SHEET URL (optional)
+const INVENTORY_URL = "PASTE_GOOGLE_SCRIPT_URL";
 
 let allOrders = [];
 let scanner = null;
 
-// ================= SCANNER FIX =================
+// ================= SCANNER =================
 window.startScanner = async () => {
-try{
+try {
 
-if(scanner){
-await scanner.stop();
-scanner.clear();
+if (scanner) {
+    await scanner.stop();
+    scanner.clear();
 }
 
 scanner = new Html5Qrcode("scanner");
 
 const cameras = await Html5Qrcode.getCameras();
 
-if(!cameras.length){
-alert("No camera found");
-return;
+if (!cameras.length) {
+    alert("❌ Camera not found");
+    return;
 }
+
+// BACK CAMERA FIX
+const backCam = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[0];
 
 await scanner.start(
-cameras[0].id,
-{ fps:10, qrbox:250 },
-async (code)=>{
+    backCam.id,
+    { fps: 10, qrbox: 250 },
+    async (code) => {
 
-document.getElementById("barcode").value = code;
+        document.getElementById("barcode").value = code;
 
-// AUTO FETCH
-try{
-let res = await fetch("https://api.upcitemdb.com/prod/trial/lookup?upc="+code);
-let data = await res.json();
+        await scanner.stop();
+        scanner.clear();
 
-if(data.items && data.items.length){
-let p = data.items[0];
-document.getElementById("pname").value = p.title || "";
-document.getElementById("image").value = p.images?.[0] || "";
-document.getElementById("price").value = p.offers?.[0]?.price || "";
-}
-}catch(e){}
-
-await scanner.stop();
-
-},
-(err)=>{}
+        alert("✅ Scanned: " + code);
+    }
 );
 
-}catch(e){
-alert("Camera Error: "+e);
+} catch (e) {
+alert("Camera Error: " + e);
 console.log(e);
 }
 };
 
-// ================= SAVE =================
+// ================= SAVE PRODUCT =================
 window.saveProduct = async () => {
 
 const product = {
-Timestamp:new Date().toISOString(),
-Barcode:document.getElementById("barcode").value,
-"Product Name":document.getElementById("pname").value,
-"Image URL":document.getElementById("image").value,
-Price:document.getElementById("price").value,
-Category:document.getElementById("category").value,
-Stock:document.getElementById("stock").value,
-Color:document.getElementById("color").value,
-Size:document.getElementById("size").value
+Timestamp: new Date().toISOString(),
+Barcode: barcode.value,
+"Product Name": pname.value,
+"Image URL": image.value,
+Price: price.value,
+Category: category.value,
+Stock: stock.value,
+Color: color.value,
+Size: size.value
 };
 
+// FIREBASE
 await addDoc(collection(db,"products"),product);
 
-// SHEET SAVE
+// GOOGLE SHEET
 try{
 await fetch(INVENTORY_URL,{
 method:"POST",
@@ -154,7 +147,7 @@ loadProducts();
 // ================= LOAD PRODUCTS =================
 async function loadProducts(){
 const snap = await getDocs(collection(db,"products"));
-document.getElementById("productsCount").innerText = snap.size;
+productsCount.innerText = snap.size;
 
 let html="";
 snap.forEach(d=>{
@@ -165,10 +158,10 @@ ${p["Product Name"]} - ₹${p["Price"]}
 <button onclick="deleteProduct('${d.id}')" class="bg-red-500 text-white px-2">X</button>
 </div>`;
 });
-document.getElementById("products").innerHTML=html;
+products.innerHTML=html;
 }
 
-// ================= DELETE =================
+// ================= DELETE PRODUCT =================
 window.deleteProduct = async(id)=>{
 await deleteDoc(doc(db,"products",id));
 loadProducts();
@@ -199,7 +192,7 @@ ${o["Customer Name"]} - ₹${o["Total"]}
 <button onclick="deleteOrder('${o.id}')" class="bg-red-500 text-white px-2">Delete</button>
 </div>`;
 });
-document.getElementById("orders").innerHTML=html;
+orders.innerHTML=html;
 }
 
 // ================= STATUS =================
@@ -216,18 +209,19 @@ loadOrders();
 // ================= STATS =================
 function updateStats(){
 let rev=0,p=0;
+
 allOrders.forEach(o=>{
 rev+=Number(o.Total||0);
-if(o.Status=="Pending")p++;
+if(o.Status=="Pending") p++;
 });
 
-document.getElementById("ordersCount").innerText = allOrders.length;
-document.getElementById("revenue").innerText = "₹"+rev;
-document.getElementById("pending").innerText = p;
+ordersCount.innerText = allOrders.length;
+revenue.innerText = "₹"+rev;
+pending.innerText = p;
 }
 
 // ================= SEARCH =================
-document.getElementById("search").oninput = (e)=>{
+search.oninput = (e)=>{
 let v=e.target.value.toLowerCase();
 renderOrders(allOrders.filter(o=>o["Customer Name"]?.toLowerCase().includes(v)));
 };
