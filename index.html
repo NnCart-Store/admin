@@ -1,4 +1,4 @@
-l<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
@@ -8,18 +8,15 @@ l<!DOCTYPE html>
 <script src="https://cdn.tailwindcss.com"></script>
 <script src="https://unpkg.com/html5-qrcode"></script>
 
+<link rel="manifest" href="manifest.json">
 </head>
 
 <body class="bg-gray-100 p-4">
 
-<!-- 🔥 TOP BAR -->
+<!-- TOP -->
 <div class="flex justify-between items-center mb-3">
 <h1 class="text-xl font-bold">🔥 NnCart PRO Admin</h1>
-
-<!-- CAMERA ICON -->
-<button onclick="startScanner()" class="bg-blue-500 text-white p-3 rounded-full">
-📷
-</button>
+<button onclick="startScanner()" class="bg-blue-500 text-white p-3 rounded-full">📷</button>
 </div>
 
 <!-- STATS -->
@@ -32,7 +29,7 @@ l<!DOCTYPE html>
 
 <input id="search" placeholder="Search Orders..." class="border p-2 w-full mb-3">
 
-<!-- ADD PRODUCT -->
+<!-- PRODUCT -->
 <div class="bg-white p-3 rounded shadow mb-4">
 <h2 class="font-bold mb-2">📦 Add / Scan Product</h2>
 
@@ -62,9 +59,9 @@ l<!DOCTYPE html>
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc, query, where } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-// 🔥 FIREBASE CONFIG
+// FIREBASE
 const firebaseConfig = {
   apiKey: "PASTE_API_KEY",
   authDomain: "PASTE_PROJECT.firebaseapp.com",
@@ -74,229 +71,191 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔥 GOOGLE SHEET
+// GOOGLE SHEET
 const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbxJyzPwLSZ2BAStTcbo-EhAXeiMtc97ZhRhUAoLcNIOpF8-C1m81M77rlL7AYYo8JoP/exec";
 
-  // --- ORDERS LOAD KARNE KA CODE ---
-const B2C_URL = "YOUR_WEB_APP_URL_HERE"; // <--- Yahan apna Apps Script wala URL dalein
+// ELEMENTS
+const barcode = document.getElementById("barcode");
+const pname = document.getElementById("pname");
+const price = document.getElementById("price");
+const image = document.getElementById("image");
+const category = document.getElementById("category");
+const stock = document.getElementById("stock");
+const color = document.getElementById("color");
+const size = document.getElementById("size");
 
-async function loadOrders() {
-    try {
-        const response = await fetch(B2C_URL + "?action=getOrders");
-        const data = await response.json();
-        
-        let html = '<table class="w-full border-collapse border mt-2">';
-        html += '<tr class="bg-gray-200"><th>Name</th><th>Product</th><th>Status</th></tr>';
-        
-        // Loop start (1 se kyunki row 0 header hai)
-        for(let i = 1; i < data.length; i++) {
-            html += `<tr class="border-b">
-                <td class="p-2">${data[i][1] || ''}</td> 
-                <td class="p-2">${data[i][4] || ''}</td> 
-                <td class="p-2 font-bold text-red-600">${data[i][7] || 'Pending'}</td>
-            </tr>`;
-        }
-        html += '</table>';
-        
-        // Aapki HTML file mein line 60 par 'orders' id wala div hai, wahan ye dikhega
-        document.getElementById('orders').innerHTML = html;
-    } catch (e) {
-        console.error("Error loading orders:", e);
-        document.getElementById('orders').innerHTML = "Orders load nahi ho paye.";
-    }
-}
-
-// Function ko call karein taaki page khulte hi orders dikh jayein
-loadOrders();
-  
-let allOrders = [];
 let scanner = null;
+let allOrders = [];
 
-// ================= SCANNER FIX =================
+// 🔥 SINGLE CAMERA SCANNER (FIXED)
 window.startScanner = async () => {
-try {
+  try {
+    document.getElementById("scanner").innerHTML = "";
+    scanner = new Html5Qrcode("scanner");
 
-const scannerDiv = document.getElementById("scanner");
-scannerDiv.innerHTML = ""; // reset
+    await scanner.start(
+      { facingMode: "environment" },
+      { fps: 10, qrbox: 250 },
 
-scanner = new Html5Qrcode("scanner");
+      async (code) => {
 
-// 👇 SIMPLE SAFE START (no camera list)
-await scanner.start(
-{ facingMode: "environment" }, // back camera direct
-{ fps: 10, qrbox: 250 },
+        barcode.value = code;
 
-(code) => {
-document.getElementById("barcode").value = code;
-scanner.stop();
-scanner.clear();
-alert("✅ Scanned: " + code);
-},
+        // 🔥 AUTO FILL FROM FIREBASE
+        const q = query(collection(db, "products"), where("Barcode", "==", code));
+        const snap = await getDocs(q);
 
-(err) => {}
-);
-
-} catch (e) {
-alert("❌ Camera Error: " + e.message);
-console.log(e);
-}
-};
-
-// ✅ BACK CAMERA FORCE
-let backCam = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[cameras.length - 1];
-
-await scanner.start(
-    backCam.id,
-    { fps: 10, qrbox: 250 },
-    async (code) => {
-
-        document.getElementById("barcode").value = code;
+        if (!snap.empty) {
+          const p = snap.docs[0].data();
+          pname.value = p["Product Name"] || "";
+          price.value = p["Price"] || "";
+          image.value = p["Image URL"] || "";
+          alert("✅ Data mil gaya!");
+        } else {
+          alert("⚠️ Naya product hai");
+        }
 
         await scanner.stop();
         scanner.clear();
+      }
+    );
 
-        alert("✅ Scanned: " + code);
-    }
-);
-
-} catch (e) {
-alert("Camera Error: " + e);
-console.log(e);
-}
+  } catch (e) {
+    alert("Camera Error: " + e.message);
+  }
 };
 
-// ================= SAVE PRODUCT =================
+// 🔥 SAVE PRODUCT
 window.saveProduct = async () => {
 
-if(!barcode.value || !pname.value){
-alert("❌ Fill product details");
-return;
-}
+  if (!barcode.value || !pname.value) {
+    alert("❌ Fill product details");
+    return;
+  }
 
-const product = {
-Timestamp: new Date().toISOString(),
-Barcode: barcode.value,
-"Product Name": pname.value,
-"Image URL": image.value,
-Price: price.value,
-Category: category.value,
-Stock: stock.value,
-Color: color.value,
-Size: size.value
+  const product = {
+    Timestamp: new Date().toISOString(),
+    Barcode: barcode.value,
+    "Product Name": pname.value,
+    "Image URL": image.value,
+    Price: price.value,
+    Category: category.value,
+    Stock: stock.value,
+    Color: color.value,
+    Size: size.value
+  };
+
+  // FIREBASE
+  await addDoc(collection(db, "products"), product);
+
+  // GOOGLE SHEET
+  try {
+    await fetch(INVENTORY_URL, {
+      method: "POST",
+      mode: "no-cors",
+      body: JSON.stringify(product)
+    });
+  } catch (e) {}
+
+  alert("✅ Saved!");
+  loadProducts();
 };
 
-// 🔥 FIREBASE SAVE
-await addDoc(collection(db,"products"),product);
+// 🔥 LOAD PRODUCTS
+async function loadProducts() {
+  const snap = await getDocs(collection(db, "products"));
+  productsCount.innerText = snap.size;
 
-// 🔥 GOOGLE SHEET SAVE (FIXED)
-try{
-await fetch(INVENTORY_URL,{
-method:"POST",
-mode:"no-cors",
-headers:{"Content-Type":"application/json"},
-body:JSON.stringify(product)
-});
-}catch(e){
-console.log("Sheet Error",e);
+  let html = "";
+  snap.forEach(d => {
+    let p = d.data();
+    html += `
+    <div class="bg-white p-2 mb-2 flex justify-between">
+      ${p["Product Name"]} - ₹${p["Price"]}
+      <button onclick="deleteProduct('${d.id}')" class="bg-red-500 text-white px-2">X</button>
+    </div>`;
+  });
+
+  products.innerHTML = html;
 }
 
-alert("✅ Saved!");
-loadProducts();
+// DELETE PRODUCT
+window.deleteProduct = async (id) => {
+  await deleteDoc(doc(db, "products", id));
+  loadProducts();
 };
 
-// ================= LOAD PRODUCTS =================
-async function loadProducts(){
-const snap = await getDocs(collection(db,"products"));
-productsCount.innerText = snap.size;
+// 🔥 LOAD ORDERS (ONLY ONCE)
+async function loadOrders() {
+  const snap = await getDocs(collection(db, "orders"));
+  allOrders = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderOrders(allOrders);
+  updateStats();
+};
 
-let html="";
-snap.forEach(d=>{
-let p=d.data();
-html+=`
-<div class="bg-white p-2 mb-2 flex justify-between">
-${p["Product Name"]} - ₹${p["Price"]}
-<button onclick="deleteProduct('${d.id}')" class="bg-red-500 text-white px-2">X</button>
-</div>`;
-});
-products.innerHTML=html;
+// RENDER
+function renderOrders(list) {
+  let html = "";
+  list.forEach(o => {
+    html += `
+    <div class="bg-white p-2 mb-2">
+      ${o["Customer Name"]} - ₹${o["Total"]}
+      <br>Status: ${o["Status"]}
+      <br>
+      <select onchange="updateStatus('${o.id}',this.value)">
+        <option ${o["Status"]=="Pending"?"selected":""}>Pending</option>
+        <option ${o["Status"]=="Shipped"?"selected":""}>Shipped</option>
+        <option ${o["Status"]=="Delivered"?"selected":""}>Delivered</option>
+      </select>
+      <button onclick="deleteOrder('${o.id}')" class="bg-red-500 text-white px-2">Delete</button>
+    </div>`;
+  });
+
+  orders.innerHTML = html;
 }
 
-// ================= DELETE =================
-window.deleteProduct = async(id)=>{
-await deleteDoc(doc(db,"products",id));
-loadProducts();
+// STATUS
+window.updateStatus = async (id, s) => {
+  await updateDoc(doc(db, "orders", id), { Status: s });
+  loadOrders();
 };
 
-// ================= LOAD ORDERS =================
-async function loadOrders(){
-const snap = await getDocs(collection(db,"orders"));
-allOrders = snap.docs.map(d=>({id:d.id,...d.data()}));
-renderOrders(allOrders);
-updateStats();
-}
-
-// ================= RENDER =================
-function renderOrders(list){
-let html="";
-list.forEach(o=>{
-html+=`
-<div class="bg-white p-2 mb-2">
-${o["Customer Name"]} - ₹${o["Total"]}
-<br>Status: ${o["Status"]}
-<br>
-<select onchange="updateStatus('${o.id}',this.value)">
-<option ${o["Status"]=="Pending"?"selected":""}>Pending</option>
-<option ${o["Status"]=="Shipped"?"selected":""}>Shipped</option>
-<option ${o["Status"]=="Delivered"?"selected":""}>Delivered</option>
-</select>
-<button onclick="deleteOrder('${o.id}')" class="bg-red-500 text-white px-2">Delete</button>
-</div>`;
-});
-orders.innerHTML=html;
-}
-
-// ================= STATUS =================
-window.updateStatus = async(id,s)=>{
-await updateDoc(doc(db,"orders",id),{Status:s});
-loadOrders();
+window.deleteOrder = async (id) => {
+  await deleteDoc(doc(db, "orders", id));
+  loadOrders();
 };
 
-window.deleteOrder = async(id)=>{
-await deleteDoc(doc(db,"orders",id));
-loadOrders();
+// STATS
+function updateStats() {
+  let rev = 0, p = 0;
+
+  allOrders.forEach(o => {
+    rev += Number(o.Total || 0);
+    if (o.Status == "Pending") p++;
+  });
+
+  ordersCount.innerText = allOrders.length;
+  revenue.innerText = "₹" + rev;
+  pending.innerText = p;
 };
 
-// ================= STATS =================
-function updateStats(){
-let rev=0,p=0;
-
-allOrders.forEach(o=>{
-rev+=Number(o.Total||0);
-if(o.Status=="Pending") p++;
-});
-
-ordersCount.innerText = allOrders.length;
-revenue.innerText = "₹"+rev;
-pending.innerText = p;
-}
-
-// ================= SEARCH =================
-search.oninput = (e)=>{
-let v=e.target.value.toLowerCase();
-renderOrders(allOrders.filter(o=>o["Customer Name"]?.toLowerCase().includes(v)));
+// SEARCH
+search.oninput = (e) => {
+  let v = e.target.value.toLowerCase();
+  renderOrders(allOrders.filter(o => o["Customer Name"]?.toLowerCase().includes(v)));
 };
 
-// ================= START =================
+// INIT
 loadProducts();
 loadOrders();
 
 </script>
-<script src="app.js"></script>
 
 <script>
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('service-worker.js');
 }
 </script>
+
 </body>
 </html>
