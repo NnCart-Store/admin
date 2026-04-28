@@ -12,7 +12,15 @@
 
 <body class="bg-gray-100 p-4">
 
-<h1 class="text-xl font-bold mb-3">🔥 NnCart PRO Admin</h1>
+<!-- 🔥 TOP BAR -->
+<div class="flex justify-between items-center mb-3">
+<h1 class="text-xl font-bold">🔥 NnCart PRO Admin</h1>
+
+<!-- CAMERA ICON -->
+<button onclick="startScanner()" class="bg-blue-500 text-white p-3 rounded-full">
+📷
+</button>
+</div>
 
 <!-- STATS -->
 <div class="grid grid-cols-4 gap-2 mb-3">
@@ -56,7 +64,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
 import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-// 🔥 PUT YOUR REAL FIREBASE HERE
+// 🔥 FIREBASE CONFIG
 const firebaseConfig = {
   apiKey: "PASTE_API_KEY",
   authDomain: "PASTE_PROJECT.firebaseapp.com",
@@ -66,13 +74,13 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// 🔥 GOOGLE SHEET URL (optional)
+// 🔥 GOOGLE SHEET
 const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbw4Uzvp_BTXFxDAYmj4tFCVhNsFqFIUJX7uST0yQV2EomEou3ygdxZUG2fQmyJ8-tg_/exec";
 
 let allOrders = [];
 let scanner = null;
 
-// ================= SCANNER =================
+// ================= SCANNER FIX =================
 window.startScanner = async () => {
 try {
 
@@ -90,8 +98,8 @@ if (!cameras.length) {
     return;
 }
 
-// BACK CAMERA FIX
-const backCam = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[0];
+// ✅ BACK CAMERA FORCE
+let backCam = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[cameras.length - 1];
 
 await scanner.start(
     backCam.id,
@@ -116,6 +124,11 @@ console.log(e);
 // ================= SAVE PRODUCT =================
 window.saveProduct = async () => {
 
+if(!barcode.value || !pname.value){
+alert("❌ Fill product details");
+return;
+}
+
 const product = {
 Timestamp: new Date().toISOString(),
 Barcode: barcode.value,
@@ -128,17 +141,20 @@ Color: color.value,
 Size: size.value
 };
 
-// FIREBASE
+// 🔥 FIREBASE SAVE
 await addDoc(collection(db,"products"),product);
 
-// GOOGLE SHEET
+// 🔥 GOOGLE SHEET SAVE (FIXED)
 try{
 await fetch(INVENTORY_URL,{
 method:"POST",
+mode:"no-cors",
 headers:{"Content-Type":"application/json"},
 body:JSON.stringify(product)
 });
-}catch(e){}
+}catch(e){
+console.log("Sheet Error",e);
+}
 
 alert("✅ Saved!");
 loadProducts();
@@ -161,7 +177,7 @@ ${p["Product Name"]} - ₹${p["Price"]}
 products.innerHTML=html;
 }
 
-// ================= DELETE PRODUCT =================
+// ================= DELETE =================
 window.deleteProduct = async(id)=>{
 await deleteDoc(doc(db,"products",id));
 loadProducts();
