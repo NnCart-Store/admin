@@ -84,19 +84,31 @@ let scanner = null;
 window.startScanner = async () => {
 try {
 
-if (scanner) {
-    await scanner.stop();
-    scanner.clear();
-}
+const scannerDiv = document.getElementById("scanner");
+scannerDiv.innerHTML = ""; // reset
 
 scanner = new Html5Qrcode("scanner");
 
-const cameras = await Html5Qrcode.getCameras();
+// 👇 SIMPLE SAFE START (no camera list)
+await scanner.start(
+{ facingMode: "environment" }, // back camera direct
+{ fps: 10, qrbox: 250 },
 
-if (!cameras.length) {
-    alert("❌ Camera not found");
-    return;
+(code) => {
+document.getElementById("barcode").value = code;
+scanner.stop();
+scanner.clear();
+alert("✅ Scanned: " + code);
+},
+
+(err) => {}
+);
+
+} catch (e) {
+alert("❌ Camera Error: " + e.message);
+console.log(e);
 }
+};
 
 // ✅ BACK CAMERA FORCE
 let backCam = cameras.find(c => c.label.toLowerCase().includes("back")) || cameras[cameras.length - 1];
