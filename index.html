@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+l<!DOCTYPE html>
 <html lang="hi">
 <head>
 <meta charset="UTF-8">
@@ -77,6 +77,38 @@ const db = getFirestore(app);
 // 🔥 GOOGLE SHEET
 const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbxJyzPwLSZ2BAStTcbo-EhAXeiMtc97ZhRhUAoLcNIOpF8-C1m81M77rlL7AYYo8JoP/exec";
 
+  // --- ORDERS LOAD KARNE KA CODE ---
+const B2C_URL = "YOUR_WEB_APP_URL_HERE"; // <--- Yahan apna Apps Script wala URL dalein
+
+async function loadOrders() {
+    try {
+        const response = await fetch(B2C_URL + "?action=getOrders");
+        const data = await response.json();
+        
+        let html = '<table class="w-full border-collapse border mt-2">';
+        html += '<tr class="bg-gray-200"><th>Name</th><th>Product</th><th>Status</th></tr>';
+        
+        // Loop start (1 se kyunki row 0 header hai)
+        for(let i = 1; i < data.length; i++) {
+            html += `<tr class="border-b">
+                <td class="p-2">${data[i][1] || ''}</td> 
+                <td class="p-2">${data[i][4] || ''}</td> 
+                <td class="p-2 font-bold text-red-600">${data[i][7] || 'Pending'}</td>
+            </tr>`;
+        }
+        html += '</table>';
+        
+        // Aapki HTML file mein line 60 par 'orders' id wala div hai, wahan ye dikhega
+        document.getElementById('orders').innerHTML = html;
+    } catch (e) {
+        console.error("Error loading orders:", e);
+        document.getElementById('orders').innerHTML = "Orders load nahi ho paye.";
+    }
+}
+
+// Function ko call karein taaki page khulte hi orders dikh jayein
+loadOrders();
+  
 let allOrders = [];
 let scanner = null;
 
