@@ -17,10 +17,10 @@
 </div>
 
 <div class="grid grid-cols-4 gap-2 mb-3">
-    <div class="bg-white p-2 text-center shadow">Orders<br><b id="ordersCount">0</b></div>
-    <div class="bg-white p-2 text-center shadow">Revenue<br><b id="revenue">₹0</b></div>
-    <div class="bg-white p-2 text-center shadow">Pending<br><b id="pending">0</b></div>
-    <div class="bg-white p-2 text-center shadow">Products<br><b id="productsCount">0</b></div>
+    <div class="bg-white p-2 text-center shadow text-xs">Orders<br><b id="ordersCount">0</b></div>
+    <div class="bg-white p-2 text-center shadow text-xs">Revenue<br><b id="revenue">₹0</b></div>
+    <div class="bg-white p-2 text-center shadow text-xs">Pending<br><b id="pending">0</b></div>
+    <div class="bg-white p-2 text-center shadow text-xs">Products<br><b id="productsCount">0</b></div>
 </div>
 
 <input id="search" placeholder="Search Orders..." class="border p-2 w-full mb-3">
@@ -38,7 +38,7 @@
 
     <div class="flex gap-2 mt-2">
         <button onclick="startScanner()" class="bg-blue-500 text-white p-2 w-full">Scan</button>
-        <button onclick="saveProduct()" class="bg-green-500 text-white p-2 w-full">Save</button>
+        <button id="saveBtn" onclick="saveProduct()" class="bg-green-500 text-white p-2 w-full">Save</button>
     </div>
 
     <div id="scanner" style="width:100%; min-height:300px; margin-top:10px;"></div>
@@ -54,7 +54,6 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
     import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
-    // FIREBASE CONFIG (Cleaned up)
     const firebaseConfig = {
         apiKey: "AIzaSyCH2di4fAKw8vA80Cv8BMobi-v1p0I", 
         authDomain: "nncart.firebaseapp.com",
@@ -67,13 +66,11 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // GOOGLE SHEET
+    // GOOGLE SHEET URL (Tujhe isi URL par data bhejna hai)
     const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbz_JM964nZ8j9BqU3yLXSO6c2HYNK0MRSDKkim8VkIFecKUCRV4rduKaoGeUq8q88GA/exec";
 
-    // Scanner variable
     let html5QrCode = null;
 
-    // 🔥 FIXED SCANNER
     window.startScanner = async () => {
         const scannerDiv = document.getElementById("scanner");
         scannerDiv.innerHTML = '<div id="qr-reader" style="width: 100%;"></div>';
@@ -94,28 +91,63 @@
                 }
             );
         } catch (err) {
-            alert("❌ Camera Error: " + err + "\n\nTip: Browser ko Camera permission Allow karo.");
+            alert("❌ Camera Error: " + err);
         }
     };
 
-    // 🔥 SAVE PRODUCT
+    // 🔥 FIXED SAVE PRODUCT LOGIC
     window.saveProduct = async () => {
-        if (!document.getElementById("barcode").value) { alert("❌ Barcode daalo"); return; }
+        const barcodeVal = document.getElementById("barcode").value;
+        const nameVal = document.getElementById("pname").value;
+
+        if (!barcodeVal || !nameVal) { 
+            alert("❌ Barcode aur Name zaroori hai!"); 
+            return; 
+        }
+
+        const btn = document.getElementById("saveBtn");
+        btn.disabled = true;
+        btn.innerText = "Saving...";
         
         const product = {
-            Barcode: document.getElementById("barcode").value,
-            "Product Name": document.getElementById("pname").value,
-            Price: document.getElementById("price").value
+            Barcode: barcodeVal,
+            Name: nameVal,
+            Price: document.getElementById("price").value || "0",
+            Image: document.getElementById("image").value || "",
+            Category: document.getElementById("category").value || "",
+            Stock: document.getElementById("stock").value || "0",
+            Color: document.getElementById("color").value || "",
+            Size: document.getElementById("size").value || ""
         };
 
-        await addDoc(collection(db, "products"), product);
-        alert("✅ Saved!");
+        try {
+            // 1. Save to Firebase
+            await addDoc(collection(db, "products"), product);
+
+            // 2. Save to Google Sheet (fetch request added)
+            await fetch(INVENTORY_URL + "?action=addProduct", {
+                method: "POST",
+                mode: "no-cors",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(product)
+            });
+
+            alert("✅ Firebase aur Google Sheet dono mein save ho gaya!");
+            location.reload(); 
+        } catch (e) {
+            alert("❌ Error: " + e.message);
+            btn.disabled = false;
+            btn.innerText = "Save";
+        }
     };
 
-    // Other functions (Keep them as they were)
     window.loadProducts = async () => {
-        const snap = await getDocs(collection(db, "products"));
-        document.getElementById("productsCount").innerText = snap.size;
+        try {
+            const snap = await getDocs(collection(db, "products"));
+            document.getElementById("productsCount").innerText = snap.size;
+        } catch (e) {
+            console.log("Load error");
+        }
     };
     
     loadProducts();
