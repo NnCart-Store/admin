@@ -66,11 +66,11 @@
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
 
-    // GOOGLE SHEET URL (Tujhe isi URL par data bhejna hai)
     const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbz_JM964nZ8j9BqU3yLXSO6c2HYNK0MRSDKkim8VkIFecKUCRV4rduKaoGeUq8q88GA/exec";
 
     let html5QrCode = null;
 
+    // 🔥 SMART SCANNER (Auto-Fetch Enabled)
     window.startScanner = async () => {
         const scannerDiv = document.getElementById("scanner");
         scannerDiv.innerHTML = '<div id="qr-reader" style="width: 100%;"></div>';
@@ -83,9 +83,27 @@
             await html5QrCode.start(
                 { facingMode: "environment" },
                 { fps: 10, qrbox: 250 },
-                (decodedText) => {
+                async (decodedText) => {
                     document.getElementById("barcode").value = decodedText;
-                    alert("✅ Scan Success: " + decodedText);
+                    
+                    // --- SMART FETCH START ---
+                    document.getElementById("pname").value = "Searching net...";
+                    try {
+                        const res = await fetch(`https://world.openfoodfacts.org/api/v0/product/${decodedText}.json`);
+                        const data = await res.json();
+                        if (data.status === 1) {
+                            document.getElementById("pname").value = data.product.product_name || "";
+                            document.getElementById("image").value = data.product.image_url || "";
+                            alert("✅ Net se data mil gaya!");
+                        } else {
+                            document.getElementById("pname").value = "";
+                            alert("⚠️ Scan OK, par Net par detail nahi mili.");
+                        }
+                    } catch (e) {
+                        document.getElementById("pname").value = "";
+                    }
+                    // --- SMART FETCH END ---
+
                     html5QrCode.stop();
                     scannerDiv.innerHTML = "";
                 }
@@ -121,10 +139,10 @@
         };
 
         try {
-            // 1. Save to Firebase
+            // 1. Firebase Save
             await addDoc(collection(db, "products"), product);
 
-            // 2. Save to Google Sheet (fetch request added)
+            // 2. Google Sheet Save
             await fetch(INVENTORY_URL + "?action=addProduct", {
                 method: "POST",
                 mode: "no-cors",
@@ -145,9 +163,7 @@
         try {
             const snap = await getDocs(collection(db, "products"));
             document.getElementById("productsCount").innerText = snap.size;
-        } catch (e) {
-            console.log("Load error");
-        }
+        } catch (e) { console.log("Load error"); }
     };
     
     loadProducts();
