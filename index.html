@@ -172,7 +172,39 @@
             document.getElementById("productsCount").innerText = snap.size;
         } catch (e) { console.log("Load error"); }
     };
-    
+        // --- Yahan se naya code shuru ---
+    window.loadOrders = async () => {
+        try {
+            const response = await fetch(INVENTORY_URL + "?action=getOrders");
+            const data = await response.json();
+            let orders = data.orders; 
+            let staffListHTML = "";
+            let packedCount = 0;
+
+            orders.forEach(order => {
+                let worker = order.Staff_ID || "Not Assigned";
+                let status = order.Packing_Status || "Pending";
+                if(status === "Packed") packedCount++;
+                let statusColor = status === "Packed" ? "text-green-600" : "text-red-500";
+
+                staffListHTML += `
+                    <div class="border-b p-2 bg-gray-50 mb-1 rounded flex justify-between items-center">
+                        <div>
+                            <p class="text-xs font-bold text-gray-700">Order: #${order.OrderID}</p>
+                            <p class="text-[10px] text-blue-500 font-bold">Packed By: ${worker}</p>
+                        </div>
+                        <span class="text-[10px] font-bold ${statusColor}">${status.toUpperCase()}</span>
+                    </div>`;
+            });
+            document.getElementById('orders').innerHTML = staffListHTML;
+            document.getElementById('ordersCount').innerText = orders.length;
+            document.getElementById('pending').innerText = orders.length - packedCount;
+        } catch (e) { console.log("Load error"); }
+    };
+    loadOrders(); // Ise chalane ke liye
+    setInterval(loadOrders, 20000); // Har 20 sec mein auto-update
+    // --- Yahan naya code khatam ---
+
     loadProducts();
 </script>
 </body>
