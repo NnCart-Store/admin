@@ -5,32 +5,61 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        /* Smooth animation for popup */
+        #popup-content { animation: slideUp 0.3s ease-out; }
+        @keyframes slideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    </style>
 </head>
-<body class="bg-gray-200 p-4">
+<body class="bg-gray-100 font-sans">
 
-    <h1 class="text-xl font-bold mb-4 text-center">NnCart AI Admin</h1>
+    <div class="bg-white p-4 shadow-sm flex justify-between items-center mb-4">
+        <h1 class="text-xl font-black text-blue-600">🚀 NnCart AI</h1>
+        <div class="bg-blue-100 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">Admin Mode</div>
+    </div>
 
-    <div id="reader" class="rounded-2xl overflow-hidden mb-4 bg-black shadow-lg"></div>
-    <button onclick="window.startScan()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold shadow-md">📷 SCAN BARCODE</button>
+    <div class="p-4">
+        <div id="reader" class="rounded-3xl overflow-hidden mb-4 bg-black border-4 border-white shadow-2xl"></div>
+        <button onclick="window.startScan()" class="w-full bg-blue-600 text-white p-5 rounded-2xl font-black text-lg shadow-blue-200 shadow-xl active:scale-95 transition-all flex items-center justify-center gap-3">
+            <span>📷</span> SCAN ANY PRODUCT
+        </button>
+    </div>
 
-    <div id="popup" class="fixed inset-0 bg-black/80 hidden flex items-center justify-center p-4 z-50">
-        <div class="bg-white w-full max-w-sm rounded-3xl overflow-hidden shadow-2xl">
-            <div class="bg-gray-100 h-48 flex items-center justify-center border-b">
-                <img id="preview-img" src="" class="h-full w-full object-contain p-2" alt="No Photo Found">
+    <div id="popup" class="fixed inset-0 bg-black/70 hidden flex items-end sm:items-center justify-center z-50 p-4">
+        <div id="popup-content" class="bg-white w-full max-w-md rounded-t-[40px] sm:rounded-[40px] overflow-hidden shadow-2xl">
+            
+            <div class="relative h-64 bg-gray-50 flex items-center justify-center border-b">
+                <img id="preview-img" src="" class="h-full w-full object-contain p-6" alt="Product Image">
+                <div class="absolute top-4 right-4 bg-white/80 backdrop-blur px-3 py-1 rounded-full text-[10px] font-bold shadow-sm" id="barcode-tag">No ID</div>
             </div>
 
-            <div class="p-5 space-y-3">
-                <input id="pname" placeholder="Product Name" class="w-full p-2 border-b font-bold outline-none">
-                <div class="flex gap-2">
-                    <input id="price" type="number" placeholder="Set Price ₹" class="w-1/2 p-2 border rounded bg-yellow-50 outline-none">
-                    <input id="stock" type="number" value="1" class="w-1/2 p-2 border rounded outline-none">
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Product Name</label>
+                    <input id="pname" placeholder="Item ka naam..." class="w-full text-lg font-bold border-b-2 border-gray-100 focus:border-blue-500 outline-none py-1">
                 </div>
-                <input id="category" placeholder="Category" class="w-full p-2 border rounded text-xs outline-none">
-                <input id="barcode" class="w-full p-2 text-[10px] text-gray-400 bg-gray-50 border-none outline-none" readonly>
-                
-                <div class="flex gap-2 mt-4">
-                    <button onclick="document.getElementById('popup').classList.add('hidden')" class="w-1/3 bg-gray-200 p-3 rounded-xl font-bold text-gray-600">Cancel</button>
-                    <button id="saveBtn" onclick="window.saveAll()" class="w-2/3 bg-green-600 text-white p-3 rounded-xl font-bold shadow-lg">✅ Confirm & Save</button>
+
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Price (₹)</label>
+                        <input id="price" type="number" placeholder="0" class="w-full text-xl font-bold text-green-600 border-b-2 border-gray-100 outline-none py-1">
+                    </div>
+                    <div>
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stock</label>
+                        <input id="stock" type="number" value="1" class="w-full text-xl font-bold border-b-2 border-gray-100 outline-none py-1">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Category</label>
+                    <input id="category" placeholder="Apparel/Footwear..." class="w-full text-sm border-b-2 border-gray-100 outline-none py-1">
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button onclick="document.getElementById('popup').classList.add('hidden')" class="flex-1 bg-gray-100 text-gray-500 p-4 rounded-2xl font-bold active:scale-95 transition-all">Cancel</button>
+                    <button id="saveBtn" onclick="window.saveAll()" class="flex-[2] bg-blue-600 text-white p-4 rounded-2xl font-black shadow-lg shadow-blue-100 active:scale-95 transition-all flex items-center justify-center gap-2">
+                        <span>✅</span> CONFIRM & SAVE
+                    </button>
                 </div>
             </div>
         </div>
@@ -40,6 +69,7 @@
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
     import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
+    // Teri Firebase Config
     const firebaseConfig = {
         apiKey: "AIzaSyCH2di4fAKw8vA80Cv8BMobi-v1p0I",
         authDomain: "nncart.firebaseapp.com",
@@ -55,51 +85,59 @@
     let scanner = new Html5Qrcode("reader");
 
     window.startScan = () => {
-        scanner.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, async (txt) => {
+        scanner.start({ facingMode: "environment" }, { fps: 20, qrbox: {width: 250, height: 150} }, async (txt) => {
             scanner.stop();
-            document.getElementById("barcode").value = txt;
-            document.getElementById("popup").classList.remove("hidden"); // Show Popup
-            document.getElementById("pname").value = "🔎 AI Searching...";
-            document.getElementById("preview-img").src = "https://cdn-icons-png.flaticon.com/512/107/107831.png"; // Loading icon
+            
+            // Popup Reset & Show
+            document.getElementById("popup").classList.remove("hidden");
+            document.getElementById("barcode-tag").innerText = "ID: " + txt;
+            document.getElementById("pname").value = "🔎 AI Search...";
+            document.getElementById("preview-img").src = "https://cdn-icons-png.flaticon.com/512/107/107831.png"; // Search icon
 
+            // Fetch Data
             try {
                 const res = await fetch(`https://world.openfoodfacts.org/api/v2/product/${txt}.json`);
                 const data = await res.json();
                 
                 if (data.status === 1) {
-                    document.getElementById("pname").value = data.product.product_name || "Branded Item";
-                    document.getElementById("category").value = data.product.categories?.split(',')[0] || "General";
+                    document.getElementById("pname").value = data.product.product_name || "";
+                    document.getElementById("category").value = data.product.categories?.split(',')[0] || "";
                     document.getElementById("preview-img").src = data.product.image_url || "";
                 } else {
                     document.getElementById("pname").value = "";
-                    document.getElementById("pname").placeholder = "Naam bharein (Brand nahi mila)";
-                    document.getElementById("preview-img").src = "https://cdn-icons-png.flaticon.com/512/3342/3342137.png"; // Placeholder icon
+                    document.getElementById("pname").placeholder = "Naam bharein...";
+                    document.getElementById("preview-img").src = "https://cdn-icons-png.flaticon.com/512/3342/3342137.png"; // Placeholder
                 }
             } catch (e) {
-                document.getElementById("pname").value = "Manual Entry";
+                document.getElementById("pname").value = "";
             }
         });
     };
 
     window.saveAll = async () => {
+        const name = document.getElementById("pname").value;
+        const barcode = document.getElementById("barcode-tag").innerText.replace("ID: ", "");
+        
+        if (!name) { alert("Naam likhna zaroori hai!"); return; }
+
         const btn = document.getElementById("saveBtn");
+        btn.disabled = true; btn.innerText = "Saving...";
+
         const product = {
-            Barcode: document.getElementById("barcode").value,
-            Name: document.getElementById("pname").value,
+            Barcode: barcode,
+            Name: name,
             Price: document.getElementById("price").value || "0",
             Stock: document.getElementById("stock").value || "1",
             Image: document.getElementById("preview-img").src,
-            Category: document.getElementById("category").value || ""
+            Category: document.getElementById("category").value || "",
+            Timestamp: new Date().toLocaleString()
         };
-
-        if (!product.Name) { alert("Naam bharna zaroori hai!"); return; }
-        
-        btn.disabled = true; btn.innerText = "Saving...";
 
         try {
             await addDoc(collection(db, "products"), product);
             fetch(`${SHEET_URL}?action=addProduct&${new URLSearchParams(product)}`, { mode: "no-cors" });
-            alert("✅ Saved Successfully!");
+            
+            alert("✅ Inventory Updated!");
             location.reload();
         } catch (e) { alert("Error!"); btn.disabled = false; }
     };
