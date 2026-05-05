@@ -41,19 +41,20 @@
         <button id="saveBtn" onclick="saveProduct()" class="bg-green-500 text-white p-2 w-full">Save</button>
     </div>
 
-    <div id="scanner" style="width:100%; min-height:300px; margin-top:10px;"></div>
+    <div id="scanner" style="width:100%; min-height:0px; margin-top:10px;"></div>
 </div>
 
 <h2 class="font-bold">Products</h2>
-<div id="products"></div>
+<div id="products" class="mb-4"></div>
 
 <h2 class="font-bold mt-4">Orders</h2>
 <div id="orders"></div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-app.js";
-    import { getFirestore, collection, getDocs, addDoc, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
+    import { getFirestore, collection, getDocs, addDoc } from "https://www.gstatic.com/firebasejs/10.9.0/firebase-firestore.js";
 
+    // Firebase Configuration
     const firebaseConfig = {
         apiKey: "AIzaSyCH2di4fAKw8vA80Cv8BMobi-v1p0I", 
         authDomain: "nncart.firebaseapp.com",
@@ -65,62 +66,84 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-
     const INVENTORY_URL = "https://script.google.com/macros/s/AKfycbxsZI2CZma2Op53gSJwki7gC9Zs5qZtnpp1_4N3TeerW1s3KO3F7CWGxmO5WXLZs2Dj/exec";
 
     let html5QrCode = null;
 
-    // 🔥 SMART SCANNER (Auto-Fetch Enabled)
-    window.startScanner = async () => {
-    const scannerDiv = document.getElementById("scanner");
-    scannerDiv.innerHTML = '<div id="qr-reader" style="width: 100%;"></div>';
-    const html5QrCode = new Html5Qrcode("qr-reader");
-
-    try {
-        await html5QrCode.start({ facingMode: "environment" }, { fps: 15, qrbox: 250 }, 
-            async (decodedText) => {
-                // 1. Barcode ko input box mein bharo
-                document.getElementById("barcode").value = decodedText;
-                document.getElementById("pname").value = "🔎 Searching Global Database...";
-                
-                try {
-                    // 🌍 WORLD-WIDE API (Har country ke liye)
-                    const response = await fetch(`https://world.openfoodfacts.org/api/v2/product/${decodedText}.json`);
-                    const result = await response.json();
-                    
-                    if (result && result.status === 1) {
-                        const p = result.product;
-                        
-                        // International Products ke liye alag-alag languages mein name check karna
-                        const productName = p.product_name || p.product_name_en || p.generic_name || p.product_name_fr || "Branded Item";
-                        
-                        document.getElementById("pname").value = productName;
-                        document.getElementById("image").value = p.image_url || p.image_front_url || "";
-                        document.getElementById("category").value = p.categories ? p.categories.split(',')[0] : "General";
-                        
-                        alert("✅ Global Brand Found: " + productName);
-                    } else {
-                        // Agar Database mein nahi milta
-                        document.getElementById("pname").value = "";
-                        alert("⚠️ Barcode Scanned! Par ye product kisi Global Database mein registered nahi hai. Aap manually naam bhar dein.");
-                    }
-                } catch (e) { 
-                    document.getElementById("pname").value = "";
-                    console.error("Fetch Error");
-                }
-                
-                // Scanner close logic
-                html5QrCode.stop();
-                scannerDiv.innerHTML = "";
+    // --- 1. GLOBAL SEARCH FUNCTION (Multi-Source) ---
+    async function fetchProductData(barcode) {
+        // Source 1: OpenFoodFacts
+        try {
+            let res1 = await fetch(`https://world.openfoodfacts.org/api/v2/product/${barcode}.json`);
+            let data1 = await res1.json();
+            if (data1.status === 1) {
+                let p = data1.product;
+                return {
+                    name: p.product_name || p.product_name_en || p.generic_name || "Branded Item",
+                    image: p.image_url || p.image_front_url || "",
+                    category: p.categories ? p.categories.split(',')[0] : "General"
+                };
             }
-        );
-    } catch (err) { 
-        alert("❌ Camera Error! Permissions check karein."); 
-    }
-};
-    
+        } catch(e) { console.log("OFF Fetch Error"); }
 
-    // 🔥 FIXED SAVE PRODUCT LOGIC
+        // Source 2: UPCitemdb (Backup)
+        try {
+            let res2 = await fetch(`https://api.upcitemdb.com/prod/trial/lookup?upc=${barcode}`);
+            let data2 = await res2.json();
+            if (data2.items && data2.items.length > 0) {
+                let item = data2.items[0];
+                return {
+                    name: item.title,
+                    image: item.images ? item.images[0] : "",
+                    category: item.category || "General"
+                };
+            }
+        } catch(e) { console.log("UPC Fetch Error"); }
+
+        return null;
+    }
+
+    // --- 2. SCANNER LOGIC ---
+    window.startScanner = async () => {
+        const scannerDiv = document.getElementById("scanner");
+        scannerDiv.innerHTML = '<div id="qr-reader" style="width:100%"></div>';
+        
+        if (html5QrCode) {
+            try { await html5QrCode.stop(); } catch(e){}
+        }
+
+        html5QrCode = new Html5Qrcode("qr-reader");
+
+        try {
+            await html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 15, qrbox: 250 },
+                async (decodedText) => {
+                    document.getElementById("barcode").value = decodedText;
+                    document.getElementById("pname").value = "🔎 Searching Global Database...";
+
+                    let data = await fetchProductData(decodedText);
+
+                    if (data) {
+                        document.getElementById("pname").value = data.name;
+                        document.getElementById("image").value = data.image;
+                        document.getElementById("category").value = data.category;
+                        alert("✅ Product Found: " + data.name);
+                    } else {
+                        document.getElementById("pname").value = "";
+                        alert("⚠️ Barcode Scanned! Database mein nahi mila, kripya manual fill karein.");
+                    }
+
+                    await html5QrCode.stop();
+                    scannerDiv.innerHTML = "";
+                }
+            );
+        } catch (err) {
+            alert("❌ Camera Error / Permission issue");
+        }
+    };
+
+    // --- 3. SAVE PRODUCT LOGIC ---
     window.saveProduct = async () => {
         const barcodeVal = document.getElementById("barcode").value;
         const nameVal = document.getElementById("pname").value;
@@ -146,10 +169,10 @@
         };
 
         try {
-            // 1. Firebase Save
+            // Firebase Save
             await addDoc(collection(db, "products"), product);
 
-            // 2. Google Sheet Save
+            // Google Sheet Save (no-cors used for Apps Script)
             await fetch(INVENTORY_URL + "?action=addProduct", {
                 method: "POST",
                 mode: "no-cors",
@@ -166,18 +189,19 @@
         }
     };
 
+    // --- 4. LOAD DATA (Orders & Products) ---
     window.loadProducts = async () => {
         try {
             const snap = await getDocs(collection(db, "products"));
             document.getElementById("productsCount").innerText = snap.size;
-        } catch (e) { console.log("Load error"); }
+        } catch (e) { console.log("Product Load error"); }
     };
-        // --- Yahan se naya code shuru ---
+
     window.loadOrders = async () => {
         try {
             const response = await fetch(INVENTORY_URL + "?action=getOrders");
             const data = await response.json();
-            let orders = data.orders; 
+            let orders = data.orders || []; 
             let staffListHTML = "";
             let packedCount = 0;
 
@@ -190,7 +214,7 @@
                 staffListHTML += `
                     <div class="border-b p-2 bg-gray-50 mb-1 rounded flex justify-between items-center">
                         <div>
-                            <p class="text-xs font-bold text-gray-700">Order: #${order.OrderID}</p>
+                            <p class="text-xs font-bold text-gray-700">Order: #${order.OrderID || 'N/A'}</p>
                             <p class="text-[10px] text-blue-500 font-bold">Packed By: ${worker}</p>
                         </div>
                         <span class="text-[10px] font-bold ${statusColor}">${status.toUpperCase()}</span>
@@ -199,13 +223,14 @@
             document.getElementById('orders').innerHTML = staffListHTML;
             document.getElementById('ordersCount').innerText = orders.length;
             document.getElementById('pending').innerText = orders.length - packedCount;
-        } catch (e) { console.log("Load error"); }
+        } catch (e) { console.log("Order Load error"); }
     };
-    loadOrders(); // Ise chalane ke liye
-    setInterval(loadOrders, 20000); // Har 20 sec mein auto-update
-    // --- Yahan naya code khatam ---
 
+    // Initial Load
     loadProducts();
+    loadOrders();
+    setInterval(loadOrders, 20000); // Auto-update every 20 seconds
+
 </script>
 </body>
 </html>
